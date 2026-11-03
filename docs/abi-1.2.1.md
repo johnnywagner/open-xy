@@ -737,6 +737,47 @@ publishes each change. Audio maps notes with that snapshot and the same
 integer mapping, without calling GUI project or pattern getters. Choke uses
 the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
 
+## Stock voices
+
+A synth declaring `stockVoice` links one binding unit per engine,
+[`stock_drumline.cpp`](../sdk/platform/opxy-1.2.1/stock_drumline.cpp); a
+collection without such a synth links none, and no profile edit is added.
+
+Stock registers drumline as engine 4 on page 8, a sample-flag record whose
+voices only the alternate voice renderer (`0x8d51b274`) drives. Its factory
+(`0x8d513d1c`) constructs static 560-byte voices with `0x8d513a58`, which
+installs method table `0x8404ce3c`: +12 renders a block into the 64-word mono
+buffer, +16 starts a note, +28 reads the note's model flags from its patch, +32
+reports mono and +40 the engine level. The +8 block call asserts. The binding
+constructs the voice in the machine's own storage, checks the method table,
+and calls +16 then +28 at note start and +12 per block.
+
+The +12 call takes the voice, the output, an eight-word patch and the track
+parameter block. Stock builds the patch per key (`0x8d5ad6c4`): word 0 the
+model as the centre of one 66th of the Q31 range (family × 6 + variant), words
+1–4 the model's controls, 5 pan (0.5 centre), 6 random, 7 gain (`0x08000000` is
+0 dB). Render adds each of the track's first eight words less 0.5 to the
+controls and clamps them to the model's limits; the binding passes 0.5 there
+and the track's later words unchanged. Before start, voice word `+0x34` holds
+the key and `+0x60` a length offset (0.5 adds none), which stock's note start
+(+20) copies from the note.
+
+Render reads its pitch from the per-sample buffer at `0x11902c00`, as the
+alternate renderer fills it: the phase increment shifted right by 16, so that
+`0x800` is the model's own tuning. The synth path holds full increments; for
+the call the binding rescales them so that C4 is `0x800`, then restores the
+buffer. Stock's mixer scales drumline by the +40 level (`0x7fffffff` by
+default) shifted right by 3; the binding applies that shift.
+
+### Stock artwork
+
+A synth screen naming stock artwork loads that asset instead of its own and
+binds the IDs its definition lists. Besides path and text leaves, it accepts
+SVG groups, whose constructor (`0x8d5f1190`) installs method table
+`0x840c34d0`; stock moves groups through the same matrix setter
+(`0x8d5f06a6`). Machines with their own artwork bind path leaves only, as
+before.
+
 ## Project companions
 
 Stock saves every project, the workspace included, through one function,

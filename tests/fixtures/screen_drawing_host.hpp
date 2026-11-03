@@ -24,6 +24,7 @@ template<class T> void clear(T*) {}
 inline void bind_controls(Base*) {}
 inline void* find(Base*, const char*) { return nullptr; }
 inline Leaf* text_node(void*) { return nullptr; }
+inline PathNode* transform_node(void*) { return nullptr; }
 inline u32 palette_ids(void*, const void*) { return 0; }
 inline void invalidate(PathNode*) {}
 template<unsigned N> void set_words(Leaf*, const u32 (&)[N], const i32 (&)[N]) {}

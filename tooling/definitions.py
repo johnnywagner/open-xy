@@ -87,6 +87,14 @@ EFFECT_OPTIONS = ('bufferBytes', 'transport', 'display')
 # A drum kit's models in named groups (SDK 1.8), which Shift and the first encoder choose;
 # and chokeSameKey 1 for a note to cut the voices still sounding its track's same key.
 DRUM_OPTIONS = ('modelGroups', 'chokeSameKey')
+# A synth may run a stock engine's voices inside its own (SDK 1.10,
+# opxy/stock_<engine>.hpp); the SDK links that engine's binding.
+SYNTH_OPTIONS = ('trackControl', 'stockVoice')
+STOCK_VOICES_BOUND = ('drumline',)
+# Stock display assets a synth's screen may bind by their own element IDs
+# instead of its own artwork (SDK 1.10): the user's device draws them.
+STOCK_ARTWORK = ('dbox',)
+ARTWORK_ID = re.compile(r'[A-Za-z][A-Za-z0-9_]{0,62}')
 EFFECT_BUFFER_LIMIT = 524288
 # A synth's optional GUI-side track control (opxy/track_control.hpp): its state.
 CONTROL_FIELDS = ('stateBytes', 'stateAlignment')
@@ -148,10 +156,11 @@ def validate_definition(value, kind):
     label(value['name'])
     resources = value['resources']
     options = {'sample': SAMPLE_OPTIONS, 'effect': EFFECT_OPTIONS, 'drum': DRUM_OPTIONS,
-               'synth': ('trackControl',)}.get(kind, ())
+               'synth': SYNTH_OPTIONS}.get(kind, ())
     optional = tuple(k for k in options if isinstance(resources, dict) and k in resources)
     keys(resources, (*RESOURCES[kind], *optional), 'resources')
-    require(all(type(v) is int for k, v in resources.items() if k not in ('display', 'modelGroups', 'trackControl')),
+    require(all(type(v) is int for k, v in resources.items()
+                if k not in ('display', 'modelGroups', 'trackControl', 'stockVoice')),
             'Numeric resource requirements must be integers')
     if 'voiceCapacity' in resources:
         require(1 <= resources['voiceCapacity'] <= 256, 'Voice capacity must be 1..256')
@@ -268,6 +277,8 @@ def validate_synth_resources(resources):
     require(0 <= resources['sharedBytes'] and resources['sharedBytes'] % 4 == 0,
             'Shared state must occupy whole words')
     require(0 < resources['outputPeakQ31'] <= 0x7fffffff, 'Invalid oscillator output headroom')
+    require(resources.get('stockVoice', STOCK_VOICES_BOUND[0]) in STOCK_VOICES_BOUND,
+            'stockVoice names a stock engine the SDK binds: ' + ', '.join(STOCK_VOICES_BOUND))
     validate_display(resources['display'])
     if 'trackControl' in resources:
         control = resources['trackControl']
@@ -298,7 +309,8 @@ def validate_synth_resources(resources):
 def validate_display(display):
     require(not (isinstance(display, dict) and 'kind' in display),
             'This display uses a contract from before SDK 1.0: see docs/display.md#migrating-from-before-sdk-10')
-    keys(display, DISPLAY_FIELDS, 'display')
+    keys(display, (*DISPLAY_FIELDS, *(('artwork',) if isinstance(display, dict) and 'artwork' in display else ())),
+         'display')
     for name, (low, high) in DISPLAY_LIMITS.items():
         require(type(display[name]) is int and low <= display[name] <= high,
                 'Display %s must be %d..%d' % (name, low, high))
@@ -309,6 +321,16 @@ def validate_display(display):
             4 <= display['stateBytes'] and display['stateAlignment'] in (4, 8, 16) and
             display['stateBytes'] % display['stateAlignment'] == 0,
             'Display state must occupy aligned whole words')
+    if 'artwork' in display:
+        artwork = display['artwork']
+        keys(artwork, ('stock', 'ids'), 'display artwork')
+        require(artwork['stock'] in STOCK_ARTWORK, 'artwork.stock names a stock display asset: ' +
+                ', '.join(STOCK_ARTWORK))
+        ids = artwork['ids']
+        require(isinstance(ids, list) and len(ids) == display['nodes'] + display['texts'] + display['palette'] and
+                all(isinstance(i, str) and ARTWORK_ID.fullmatch(i) for i in ids) and len(set(ids)) == len(ids),
+                'artwork.ids names the stock elements of every node, text slot and palette entry, once each')
+        require(display['paths'] == 0, 'Stock artwork outlines are not reshaped: declare 0 paths')
 
 
 def validate_parameter(parameter, alternate=False, required=True):

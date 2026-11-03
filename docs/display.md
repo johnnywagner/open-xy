@@ -368,6 +368,28 @@ The selection happens while packaging, without a firmware drawing ABI change or
 a new saved sound parameter. Preview artifacts authenticate the variant's hash
 and source alongside the original; rebuilding is required after editing either.
 
+## Stock artwork
+
+A synth can instead bind a stock display asset by its own element IDs (SDK
+1.10), so that its page draws the OP-XY's artwork without the machine shipping a
+copy:
+
+```json
+"display": {"stateBytes": 4, "stateAlignment": 4, "paths": 0, "points": 0,
+            "nodes": 12, "texts": 0, "palette": 1,
+            "artwork": {"stock": "dbox", "ids": ["model_kick_a", "...", "bg"]}}
+```
+
+`ids` names the asset's element of every node, text slot and palette entry in
+binding order, as `<prefix>_...` IDs do for the machine's own artwork. The
+screen loads `<stock>.svg` from the device's `/content/display/`, and the build
+installs no artwork. Stock outlines are not reshaped (`paths` is 0); a node may
+be a group, which the frame moves, scales, turns or hides as a whole; paint
+applies only to path nodes. The stock `titles` and `values` groups show the
+controls as on any synth page. The supported asset is drumline's `dbox`. Browser
+previews draw a plain stand-in with the bound IDs, since only the device has
+the artwork.
+
 ## Migrating from before SDK 1.0
 
 Machines written for the earlier beta use two display contracts that SDK 1.0

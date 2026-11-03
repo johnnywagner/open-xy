@@ -237,6 +237,7 @@ A synth declares:
 | `outputPeakQ31` | Positive declared oscillator peak; the preview uses it for audition gain |
 | `display` | The screen's frame budget; see the [display API](display.md) |
 | `trackControl` | Optional: the [track control](#track-control) state's `stateBytes` and `stateAlignment`, and optionally `unique`, `savedBytes`, `aux` and `sharedLfo` |
+| `stockVoice` | Optional (SDK 1.10): a stock engine whose voices the synth runs inside its own; see [stock voices](#stock-voices) |
 
 The SDK never runs constructors or destructors for `Voice`, `Shared` or
 `DisplayState`: their storage starts zeroed and the callbacks set it up.
@@ -543,6 +544,37 @@ before. The browser preview models neither the choke nor `finished`.
 Kits use the same fixed shared-state and voice-pool rules as synths. Their
 code and state are linked once per machine, shared across tracks; voices
 still require independent state. Machine code and model data need no file loading when notes or patterns change.
+
+## Stock voices
+
+A synth declaring `"stockVoice": "drumline"` (SDK 1.10) can run stock drumline
+voices inside its own, through
+[stock_drumline.hpp](../sdk/include/opxy/stock_drumline.hpp). The machine owns
+each `opxy::drumline::Voice` in its `Voice` and the whole sound; the user's own
+firmware renders it. No stock code or data is part of the machine or the SDK:
+the SDK calls drumline at addresses pinned to the authenticated stock OS
+([firmware ABI](abi-1.2.1.md#stock-voices)).
+
+```cpp
+void construct(Voice&);                  // in initialize
+void start(Voice&, const Patch&);        // in start
+void render(Voice&, const Patch&, i32* output, const i32* parameters, const u32* increments);
+```
+
+`Patch` selects one of the eleven stock models (`opxy::drumline::models`, in
+stock order: kick, snare, hihat, shaker, clap, congas, fm, fm slap, pitch,
+tambourine, resonator), stock's per-hit `random` amount and the model's four
+controls, each Q31 0..max and clamped by stock to the model's range. The first
+control is the model's pitch (shaker, clap and tambourine: its colour), the
+second its length; the last two are the model's own, such as a kick's punch
+and tone. Every key plays the same patch: pitch follows the note through the
+synth's own pitch increments, with C4 at the model's own tuning, so transpose
+and modulation apply as for any synth. Output is mono at stock's drumline
+level; stock's envelope, filter, pan and mixing follow, as for any synth.
+
+Host builds have no firmware: there a voice renders silence, so machine tests,
+the browser preview and the CPU estimate cover the machine's own code only.
+Judge sound and CPU on the device.
 
 ## Sample engines
 

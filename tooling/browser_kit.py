@@ -96,7 +96,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
             entry['icon'] = m.icon
         # An unselected machine's startup and catalog callbacks decline.
         entry['absent'] = native.absent_symbols(m)
-        if m.display != 'stock':
+        if native.own_artwork(m):
             entry['artwork'] = read(m.root / 'panel.svg.fragment').decode('utf-8')
             if m.grayscale:
                 entry['grayscaleArtwork'] = read(m.root / m.grayscale).decode('utf-8')
@@ -108,6 +108,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
             wasm = read(preview_dir / 'engine.wasm')
             entry['preview'] = dict(wasm=base64.b64encode(wasm).decode('ascii'), sha256=sha(wasm),
                                     graphics=preview.graphics_metadata(m),
+                                    artwork=preview.panel_fragment(m).decode('utf-8'),
                                     defaults=[round(p['default'] * 0x7fffffff) for p in m.definition['parameters']])
         kit_machines.append(entry)
     # The native build's own objects, in its link order.

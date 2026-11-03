@@ -268,6 +268,12 @@ def generate_screen_order(directory):
     return expand('screen_order.cpp.in', RELOCATED, Path(directory) / 'screen_order.cpp')
 
 
+def screen_asset(m):
+    """The SVG asset a synth's screen loads: its own, or the stock asset it names."""
+    artwork = m.definition['resources']['display'].get('artwork')
+    return (artwork['stock'] if artwork else m.native_name) + '.svg'
+
+
 def generate_screen(directory, m):
     """The machine's renderer: its display shape and artwork IDs as data for the
     SDK renderer (screen_drawing.hpp), and its exported screen symbols. Compiled
@@ -282,11 +288,12 @@ namespace {{
 struct Machine {{
     static const char* const ids[{len(ids)}];
     static const bool sample = {'true' if getattr(m, 'kind', 'synth') == 'sample' else 'false'};   // reads its sample's overview
+    static const bool stock_artwork = {'true' if 'artwork' in m.definition['resources']['display'] else 'false'};
 }};
 const char* const Machine::ids[{len(ids)}] = {{
 {table}}};
 }}
-OPXY_SCREEN(opxy::screen::Drawing<Machine>, "{m.prefix}", "{m.native_name}.svg", {RELOCATED['PAGE_LIMIT']}, {screen_bytes(m)})
+OPXY_SCREEN(opxy::screen::Drawing<Machine>, "{m.prefix}", "{screen_asset(m)}", {RELOCATED['PAGE_LIMIT']}, {screen_bytes(m)})
 '''
     destination = Path(directory) / 'screen.cpp'
     destination.write_text(source, encoding='utf-8', newline='\n')

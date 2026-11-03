@@ -70,7 +70,7 @@ template <class Machine> struct Drawing {
         binding::display_reset(&display_state,&display_frame);
         if(!o->base.svg)return;
         bind_controls(&o->base);
-        Renderer::bind(o,Machine::ids);
+        Renderer::bind(o,Machine::ids,Machine::stock_artwork);
     }
 
     static void animate(Object* o, const Controls& controls) {

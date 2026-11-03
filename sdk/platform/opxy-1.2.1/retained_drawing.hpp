@@ -91,9 +91,12 @@ template <class Frame> struct RetainedDrawing {
         set_text(leaf, shown);
     }
 
-    static void bind(Object *o, const char *const *ids) {
-        for (u32 i = 0; i < node_count; ++i)
-            o->nodes[i] = path_node(find(&o->base, ids[i]));
+    // Stock artwork (groups) may bind groups as nodes, which frames only transform.
+    static void bind(Object *o, const char *const *ids, bool groups = false) {
+        for (u32 i = 0; i < node_count; ++i) {
+            void *node = find(&o->base, ids[i]);
+            o->nodes[i] = groups ? transform_node(node) : path_node(node);
+        }
         for (u32 i = 0; i < text_count; ++i) {
             o->texts[i] = text_node(find(&o->base, ids[node_count + i]));
             o->shown[i][0] = 1;

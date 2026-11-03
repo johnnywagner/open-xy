@@ -39,7 +39,9 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'base', 'sources',
 # 1.8 adds note players and their input/output keyboard page, synthesis drum kits, and lets
 # a sample engine forking the sampler draw its own screen and read its sample's overview.
 # 1.9 adds a synth's track control (resources.trackControl) and hidden stock pages (hidePages).
-SDK_VERSION = (1, 9)
+# 1.10 adds stock engine voices inside a synth (resources.stockVoice) and stock display
+# artwork bound by its own IDs (resources.display.artwork).
+SDK_VERSION = (1, 10)
 # The stock samplers a sample engine forks (machine.json `base`), by their stock pages:
 # the keyboard sampler's and the drum sampler's, the profile's sample_pages.
 SAMPLE_BASES = {'sampler': 2, 'drumSampler': 7}
@@ -338,6 +340,10 @@ def machine_at(root, identity=None):
         require_sdk(version, (1, 7), 'An effect whose press switches the page ("press": "page")')
     if shift_parameters(definition):
         require_sdk(version, (1, 7), 'An effect\'s shift row ("shift")')
+    if 'stockVoice' in definition['resources']:
+        require_sdk(version, (1, 10), 'A stock engine voice (stockVoice)')
+    if 'artwork' in definition['resources'].get('display', {}):
+        require_sdk(version, (1, 10), 'Stock display artwork (display.artwork)')
     if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
         require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     if 'display' in definition['resources'] and definition['resources']['display']['texts'] > SDK_1_6_TEXTS:

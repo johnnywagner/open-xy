@@ -747,10 +747,11 @@ Stock registers drumline as engine 4 on page 8, a sample-flag record whose
 voices only the alternate voice renderer (`0x8d51b274`) drives. Its factory
 (`0x8d513d1c`) constructs static 560-byte voices with `0x8d513a58`, which
 installs method table `0x8404ce3c`: +12 renders a block into the 64-word mono
-buffer, +16 starts a note, +28 reads the note's model flags from its patch, +32
-reports mono and +40 the engine level. The +8 block call asserts. The binding
+buffer, +16 starts a note, +28 releases it (gated models fade out), +32 reports
+mono and +40 the engine level. The +8 block call asserts. The binding
 constructs the voice in the machine's own storage, checks the method table,
-and calls +16 then +28 at note start and +12 per block.
+and calls +16 at note start and +12 per block; it never releases, since a
+synth's amp envelope shapes its notes.
 
 The +12 call takes the voice, the output, an eight-word patch and the track
 parameter block. Stock builds the patch per key (`0x8d5ad6c4`): word 0 the

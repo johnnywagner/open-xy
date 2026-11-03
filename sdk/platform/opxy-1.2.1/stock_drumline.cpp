@@ -21,8 +21,9 @@ namespace {
 const u32 kConstruct = 0x8d513a58;
 const u32 kVtable = 0x8404ce3c;
 // Method-table entries: +16 note start, +12 the alternate renderer's block call
-// (stock's +8 asserts), +28 the note's model flags from its patch block.
-const u32 kStart = 0x8d513bea, kRender = 0x11a06d28, kModelFlags = 0x8d513cd6;
+// (stock's +8 asserts). +28, note release, is never called: a synth's notes are
+// shaped by its amp envelope.
+const u32 kStart = 0x8d513bea, kRender = 0x11a06d28;
 // Voice words the alternate renderer's note start (+20) sets before start: the
 // key, and a Q31 offset its length control adds (0.5 adds nothing).
 const u32 kKeyWord = 0x34 / 4, kLengthOffsetWord = 0x60 / 4;
@@ -70,9 +71,7 @@ void sdk_drumline_start(Voice* voice, const Patch* patch) {
     voice->words[kKeyWord] = kKey;
     voice->words[kLengthOffsetWord] = kCentre;
     stock<void(Voice*)>(kStart)(voice);
-    i32 words[8];
-    block(*patch, words);
-    stock<void(Voice*, const i32*)>(kModelFlags)(voice, words);
+    (void)patch;
 }
 
 void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i32* parameters,

@@ -47,11 +47,18 @@ const i32 kC4Scale = 172607;
 // Render scales each sample by the per-voice gain the alternate renderer fills
 // at 0x11903400 (Q31 products of its smoothed level terms, near full scale at
 // rest), then shifts it left by 7; the synth path fills that buffer with its own
-// values, so the binding supplies full scale. Stock's mixer then scales drumline
-// by the engine's level method (0x8d513a08: 0x7fffffff by default) >> 3.
+// values, so the binding supplies full scale. Rendered so, drumline peaks well
+// below full scale: four times its level brings its loudest models (kick,
+// resonator) near a synth's half-scale peak, matched by ear against stock
+// drumline on the device; saturation guards the rare overshoot.
 const u32 kGain = 0x11903400;
 const u32 kFullGain = 0x7fffffff;
-const u32 kLevelShift = 3;
+const i32 kLevel = 4;
+
+i32 level(i32 sample) {
+    const i32 limit = 0x7fffffff / kLevel;
+    return sample > limit ? 0x7fffffff : sample < -limit ? -0x7fffffff : sample * kLevel;
+}
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
 
@@ -112,7 +119,7 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         pitch[i] = saved[i];
         gain[i] = saved_gain[i];
-        output[i] >>= kLevelShift;
+        output[i] = level(output[i]);
     }
 }
 }

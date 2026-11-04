@@ -774,8 +774,9 @@ buffer. Render also scales each sample by the per-voice gain the alternate
 renderer fills at `0x11903400`, Q31 products of its smoothed level terms that
 sit near full scale, and shifts it left by 7; the synth path fills that buffer
 with its own values, so for the call the binding sets full scale, then restores
-it. Stock's mixer scales drumline by the +40 level (`0x7fffffff` by default)
-shifted right by 3; the binding applies that shift.
+it. So rendered, drumline peaks well below full scale; the binding multiplies it
+by four, which brings its loudest models near a synth's half-scale peak
+(matched by ear against stock drumline), saturating any overshoot.
 
 ### Stock artwork
 

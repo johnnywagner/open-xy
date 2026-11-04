@@ -44,23 +44,18 @@ const u32 kTrackWords = 16;               // render reads track words 0..11
 const u32 kPitch = 0x11902c00;
 const i32 kC4Scale = 172607;
 
-// Render scales each sample by the per-voice gain the alternate renderer fills
-// at 0x11903400 (Q31 products of its smoothed level terms, near full scale at
-// rest), then shifts it left by 7; the synth path fills that buffer with its own
-// values, so the binding supplies full scale. Rendered so, drumline peaks well
-// below full scale: four times its level brings its loudest models (kick,
-// resonator) to about half scale, a synth's usual peak, so they never reach a
-// voice's Q31 limit. Stock drumline plays about 6 dB louder, which it gains in
-// its own mixer after the voice; a machine makes that up with track volume,
-// which is applied there too. Saturation only guards the limit.
+// Level, as stock plays drumline. Render scales each sample by the per-voice
+// gain the alternate renderer fills at 0x11903400 (track volume and velocity),
+// shifts it left by 7, saturating, and stock's mixer then scales it by the
+// engine's level method (+40, 0x8d513a08, about full scale) shifted right by 3.
+// The synth path applies volume and velocity after the voice and scales it by
+// method +40 directly, so the binding renders at half gain, for headroom before
+// that saturation, and the machine's +40 returns drumline's level shifted right
+// by 2: the same gain, and the voice's output is never boosted.
 const u32 kGain = 0x11903400;
-const u32 kFullGain = 0x7fffffff;
-const i32 kLevel = 4;
-
-i32 level(i32 sample) {
-    const i32 limit = 0x7fffffff / kLevel;
-    return sample > limit ? 0x7fffffff : sample < -limit ? -0x7fffffff : sample * kLevel;
-}
+const u32 kHalfGain = 0x40000000;
+const u32 kLevel = 0x8d513a08;
+const u32 kLevelShift = 2;
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
 
@@ -75,6 +70,12 @@ void block(const Patch& patch, i32 (&out)[8]) {
 }  // namespace
 
 extern "C" {
+// The stock-voice synth's method +40 (voice.cpp.in names it).
+i32 sdk_drumline_level(const void*) __asm__("sdk_drumline_level");
+i32 sdk_drumline_level(const void*) {
+    return stock<i32(const void*)>(kLevel)(nullptr) >> kLevelShift;
+}
+
 void sdk_drumline_construct(Voice* voice) {
     for (u32 i = 0; i < 140; ++i) voice->words[i] = 0;
     stock<void(Voice*)>(kConstruct)(voice);
@@ -114,14 +115,13 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         saved[i] = pitch[i];
         saved_gain[i] = gain[i];
-        gain[i] = kFullGain;
+        gain[i] = kHalfGain;
         pitch[i] = static_cast<u32>(opxy::q31::multiply(static_cast<i32>(increments[i]), kC4Scale));
     }
     stock<void(Voice*, i32*, const i32*, const i32*)>(kRender)(voice, output, words, track);
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         pitch[i] = saved[i];
         gain[i] = saved_gain[i];
-        output[i] = level(output[i]);
     }
 }
 }

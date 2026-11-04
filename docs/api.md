@@ -569,11 +569,10 @@ control is the model's pitch (shaker, clap and tambourine: its colour), the
 second its length; the last two are the model's own, such as a kick's punch
 and tone. Every key plays the same patch: pitch follows the note through the
 synth's own pitch increments, with C4 at the model's own tuning, so transpose
-and modulation apply as for any synth. Output is mono, its loudest models
-peaking at about half scale; stock drumline plays about 6 dB louder, gaining
-it after the voice, so match it with the preset's track volume rather than
-the voice level, which would flatten peaks at full scale. Stock's envelope,
-filter, pan and mixing follow, as for any synth.
+and modulation apply as for any synth. Output is mono, and the SDK gives the
+synth drumline's own engine level in stock's mix, so it plays as loud as stock
+drumline at the same track volume. Stock's envelope, filter, pan and mixing
+follow, as for any synth.
 
 Host builds have no firmware: there a voice renders silence, so machine tests,
 the browser preview and the CPU estimate cover the machine's own code only.

@@ -771,14 +771,16 @@ alternate renderer fills it: the phase increment shifted right by 16, so that
 `0x800` is the model's own tuning. The synth path holds full increments; for
 the call the binding rescales them so that C4 is `0x800`, then restores the
 buffer. Render also scales each sample by the per-voice gain the alternate
-renderer fills at `0x11903400`, Q31 products of its smoothed level terms that
-sit near full scale, and shifts it left by 7; the synth path fills that buffer
-with its own values, so for the call the binding sets full scale, then restores
-it. So rendered, drumline peaks well below full scale; the binding multiplies it
-by four, bringing its loudest models to about half scale. Stock drumline plays
-about 6 dB louder: its own mixer applies that gain after the voice, with
-headroom a synth voice's Q31 output does not have, so a machine makes it up
-with track volume, which is also applied after the voice.
+renderer fills at `0x11903400` (track volume and velocity), then shifts it left
+by 7, saturating; stock's mixer then scales drumline by its +40 level
+(`0x8d513a08`, about full scale) shifted right by 3. The renderer selector
+(`0x8d5b79f0`) sends engines 3 and 4 through that path; every other engine,
+synths included, through the synth renderer (`0x11a09308`), which applies volume
+and velocity after the voice and scales it by method +40 directly (a synth's
+default, `0x8d5051c4`, gives about 1/32). So the binding fills the gain buffer at
+half scale for the call, keeping headroom before render's saturation, then
+restores it, and the synth's own +40 (`sdk_drumline_level`) returns drumline's
+level shifted right by 2: the same gain as stock, with the voice never boosted.
 
 ### Stock artwork
 

@@ -65,9 +65,17 @@ def generate_voice(directory, m, sweep=False):
                     '        const opxy::i32* controls = swept ? swept : parameters;\n')
     else:
         declarations, controls = '', '        const opxy::i32* controls = parameters;\n'
+    # Method +40, the engine's level, scales its voices in stock's mix: stock's default
+    # for a synth, or for a synth running a stock engine's voices, that engine's level.
+    engine = m.definition['resources'].get('stockVoice')
+    if engine:
+        declarations += f'opxy::i32 sdk_{engine}_level(const void*) __asm__("sdk_{engine}_level");\n'
+        level = f'reinterpret_cast<const void*>(&sdk_{engine}_level)'
+    else:
+        level = 'reinterpret_cast<const void*>(opxy::platform::kVoiceDefaultMethod)'
     values = dict(voice_values(m.definition), SWEEP_DECLARATIONS=declarations, SWEEP_CONTROLS=controls,
                   PREFIX=m.prefix, NAME=m.native_name, LABELS=stock_labels(m),
-                  CAPACITY=m.definition['resources']['voiceCapacity'])
+                  CAPACITY=m.definition['resources']['voiceCapacity'], LEVEL_METHOD=level)
     values.pop('PEAK')
     if m.kind == 'drum':
         values['MODEL_COUNT'] = m.definition['resources']['modelCount']

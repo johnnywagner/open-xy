@@ -36,6 +36,8 @@ const i32 kCentre = 0x40000000;          // pan centre; track offsets 0.5 add no
 const i32 kUnityGain = 0x08000000;       // stock's 0 dB per-key gain word
 const u32 kKey = 60;                      // the key stock records for the voice
 const u32 kTrackWords = 16;               // render reads track words 0..11
+// The synth's amp envelope words, and drumline's track words they drive.
+const u32 kAmpAttack = 8, kAmpDecay = 9, kDrumlineAttack = 9, kDrumlineLength = 11;
 
 // Drumline reads the per-sample pitch buffer as stock's alternate renderer fills
 // it: phase increment >> 16, so that 0x800 is the model's own tuning. The synth
@@ -96,19 +98,22 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     }
     i32 words[8];
     block(*patch, words);
-    // Track offsets neutral and no track modulation, so only the machine's patch
-    // shapes the sound: render adds words 0..7 less 0.5 to the controls, raises a
-    // control toward full by word 9, adds word 10 squared to the per-hit random,
-    // and offsets length by word 11 about 0.5. The synth path's own block holds
-    // other values there.
+    // Track words 0..7 offset the controls about 0.5: neutral, so the machine's
+    // patch sets them. Words 8..11 are a synth's amp envelope (attack, decay,
+    // sustain, release); on a drumline track they are its funk, attack, random
+    // and length, which render reads as its attack (9), random added squared (10)
+    // and a length offset about 0.5 (11). So the envelope's attack drives
+    // drumline's attack and its decay drumline's length; funk and the added
+    // random stay off. Sustain and release act as on any synth, in the amp
+    // envelope stock applies after the voice.
     // Audio renders one voice at a time, so scratch is static: stock's own
     // drumline frame already sits on the audio stack.
     static i32 track[kTrackWords];
     static u32 saved[opxy::block_frames], saved_gain[opxy::block_frames];
     for (u32 i = 0; i < 8; ++i) track[i] = kCentre;
     for (u32 i = 8; i < kTrackWords; ++i) track[i] = 0;
-    track[11] = kCentre;
-    (void)parameters;
+    track[kDrumlineAttack] = parameters[kAmpAttack];
+    track[kDrumlineLength] = parameters[kAmpDecay];
     u32* pitch = reinterpret_cast<u32*>(kPitch);
     u32* gain = reinterpret_cast<u32*>(kGain);
     for (u32 i = 0; i < opxy::block_frames; ++i) {

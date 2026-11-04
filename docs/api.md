@@ -569,7 +569,12 @@ control is the model's pitch (shaker, clap and tambourine: its colour), the
 second its length; the last two are the model's own, such as a kick's punch
 and tone. Every key plays the same patch: pitch follows the note through the
 synth's own pitch increments, with C4 at the model's own tuning, so transpose
-and modulation apply as for any synth. Output is mono, and the SDK gives the
+and modulation apply as for any synth. The track's amp envelope also plays
+drumline's part: its attack is drumline's attack and its decay drumline's
+length (short decay a tight hit, long decay the model's long tail, 50 its
+nominal length), while sustain and release shape the amplitude as on any
+synth, so a short release stops a hit at note-off and a long one lets it ring.
+Output is mono, and the SDK gives the
 synth drumline's own engine level in stock's mix, so it plays as loud as stock
 drumline at the same track volume. Stock's envelope, filter, pan and mixing
 follow, as for any synth.

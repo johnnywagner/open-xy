@@ -758,11 +758,13 @@ parameter block. Stock builds the patch per key (`0x8d5ad6c4`): word 0 the
 model as the centre of one 66th of the Q31 range (family × 6 + variant), words
 1–4 the model's controls, 5 pan (0.5 centre), 6 random, 7 gain (`0x08000000` is
 0 dB). Render adds each of the track's first eight words less 0.5 to the
-controls and clamps them to the model's limits, and reads words 9 to 11 as
-modulation: word 9 raises a control toward full, word 10 squared adds to the
-per-hit random and word 11 offsets length about 0.5. The synth path's block
-holds other values there, so the binding passes 0.5 for words 0 to 7 and 11,
-and 0 for the rest. Before start, voice word `+0x34` holds
+controls and clamps them to the model's limits. Words 8 to 11 are a synth
+track's amp envelope (attack, decay, sustain, release); on a drumline track
+they are its funk, attack, random and length, of which render reads attack (9),
+random, added squared (10), and length, an offset about 0.5 (11). The binding
+passes 0.5 for words 0 to 7, the synth's envelope attack as drumline's attack
+and its decay as drumline's length, and 0 for funk and the added random;
+sustain and release act in the amp envelope stock applies after the voice. Before start, voice word `+0x34` holds
 the key and `+0x60` a length offset (0.5 adds none), which stock's note start
 (+20) copies from the note.
 

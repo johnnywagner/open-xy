@@ -44,9 +44,11 @@ const u32 kTrackWords = 16;               // render reads track words 0..11
 const u32 kPitch = 0x11902c00;
 const i32 kC4Scale = 172607;
 
-// A stock block call returns stock's raw drumline level; its mixer then scales
-// by the engine's level method (0x8d513a08: 0x7fffffff by default) >> 3.
-const u32 kLevelShift = 3;
+// Render scales each sample by the per-voice gain the alternate renderer fills
+// at 0x11903400, then shifts it left by 7; the synth path fills that buffer with
+// its own values. The binding supplies a constant that the shift makes unity.
+const u32 kGain = 0x11903400;
+const u32 kUnityRamp = 0x01000000;
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
 
@@ -87,18 +89,21 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     // Audio renders one voice at a time, so scratch is static: stock's own
     // drumline frame already sits on the audio stack.
     static i32 track[kTrackWords];
-    static u32 saved[opxy::block_frames];
+    static u32 saved[opxy::block_frames], saved_gain[opxy::block_frames];
     for (u32 i = 0; i < 8; ++i) track[i] = kCentre;
     for (u32 i = 8; i < kTrackWords; ++i) track[i] = parameters[i];
     u32* pitch = reinterpret_cast<u32*>(kPitch);
+    u32* gain = reinterpret_cast<u32*>(kGain);
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         saved[i] = pitch[i];
+        saved_gain[i] = gain[i];
+        gain[i] = kUnityRamp;
         pitch[i] = static_cast<u32>(opxy::q31::multiply(static_cast<i32>(increments[i]), kC4Scale));
     }
     stock<void(Voice*, i32*, const i32*, const i32*)>(kRender)(voice, output, words, track);
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         pitch[i] = saved[i];
-        output[i] >>= kLevelShift;
+        gain[i] = saved_gain[i];
     }
 }
 }

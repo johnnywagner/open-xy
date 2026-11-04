@@ -775,9 +775,10 @@ renderer fills at `0x11903400`, Q31 products of its smoothed level terms that
 sit near full scale, and shifts it left by 7; the synth path fills that buffer
 with its own values, so for the call the binding sets full scale, then restores
 it. So rendered, drumline peaks well below full scale; the binding multiplies it
-by eight, which matches stock drumline by ear, its loudest models reaching
-full scale, where the voice's Q31 output saturates. Stock's own mixer applies
-drumline's gain after the voice, with headroom a synth voice does not have.
+by four, bringing its loudest models to about half scale. Stock drumline plays
+about 6 dB louder: its own mixer applies that gain after the voice, with
+headroom a synth voice's Q31 output does not have, so a machine makes it up
+with track volume, which is also applied after the voice.
 
 ### Stock artwork
 

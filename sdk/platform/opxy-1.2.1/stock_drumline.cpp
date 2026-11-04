@@ -48,12 +48,14 @@ const i32 kC4Scale = 172607;
 // at 0x11903400 (Q31 products of its smoothed level terms, near full scale at
 // rest), then shifts it left by 7; the synth path fills that buffer with its own
 // values, so the binding supplies full scale. Rendered so, drumline peaks well
-// below full scale: eight times its level matches stock drumline by ear on the
-// device, its loudest models (kick, resonator) reaching full scale, where a
-// voice's Q31 output saturates.
+// below full scale: four times its level brings its loudest models (kick,
+// resonator) to about half scale, a synth's usual peak, so they never reach a
+// voice's Q31 limit. Stock drumline plays about 6 dB louder, which it gains in
+// its own mixer after the voice; a machine makes that up with track volume,
+// which is applied there too. Saturation only guards the limit.
 const u32 kGain = 0x11903400;
 const u32 kFullGain = 0x7fffffff;
-const i32 kLevel = 8;
+const i32 kLevel = 4;
 
 i32 level(i32 sample) {
     const i32 limit = 0x7fffffff / kLevel;

@@ -88,15 +88,17 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     i32 words[8];
     block(*patch, words);
     // Track offsets neutral and no track modulation, so only the machine's patch
-    // shapes the sound: render adds words 0..7 less 0.5 to the controls, and words
-    // 9..11 as modulation (word 10 squared adds to the per-hit random). The synth
-    // path's own block holds other values there.
+    // shapes the sound: render adds words 0..7 less 0.5 to the controls, raises a
+    // control toward full by word 9, adds word 10 squared to the per-hit random,
+    // and offsets length by word 11 about 0.5. The synth path's own block holds
+    // other values there.
     // Audio renders one voice at a time, so scratch is static: stock's own
     // drumline frame already sits on the audio stack.
     static i32 track[kTrackWords];
     static u32 saved[opxy::block_frames], saved_gain[opxy::block_frames];
     for (u32 i = 0; i < 8; ++i) track[i] = kCentre;
     for (u32 i = 8; i < kTrackWords; ++i) track[i] = 0;
+    track[11] = kCentre;
     (void)parameters;
     u32* pitch = reinterpret_cast<u32*>(kPitch);
     u32* gain = reinterpret_cast<u32*>(kGain);

@@ -759,9 +759,10 @@ model as the centre of one 66th of the Q31 range (family × 6 + variant), words
 1–4 the model's controls, 5 pan (0.5 centre), 6 random, 7 gain (`0x08000000` is
 0 dB). Render adds each of the track's first eight words less 0.5 to the
 controls and clamps them to the model's limits, and reads words 9 to 11 as
-modulation (word 10 squared adds to the per-hit random). The synth path's
-block holds other values there, so the binding passes 0.5 for words 0 to 7 and
-0 after them. Before start, voice word `+0x34` holds
+modulation: word 9 raises a control toward full, word 10 squared adds to the
+per-hit random and word 11 offsets length about 0.5. The synth path's block
+holds other values there, so the binding passes 0.5 for words 0 to 7 and 11,
+and 0 for the rest. Before start, voice word `+0x34` holds
 the key and `+0x60` a length offset (0.5 adds none), which stock's note start
 (+20) copies from the note.
 

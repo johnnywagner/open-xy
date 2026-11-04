@@ -563,7 +563,8 @@ void render(Voice&, const Patch&, i32* output, const i32* parameters, const u32*
 
 `Patch` selects one of the eleven stock models (`opxy::drumline::models`, in
 stock order: kick, snare, hihat, shaker, clap, congas, fm, fm slap, pitch,
-tambourine, resonator), stock's per-hit `random` amount and the model's four
+tambourine, resonator), stock's per-hit `random` amount (`keep_pitch` keeps it
+off the first control), and the model's four
 controls, each Q31 0..max and clamped by stock to the model's range. The first
 control is the model's pitch (shaker, clap and tambourine: its colour), the
 second its length; the last two are the model's own, such as a kick's punch

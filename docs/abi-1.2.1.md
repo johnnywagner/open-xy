@@ -764,7 +764,11 @@ they are its funk, attack, random and length, of which render reads attack (9),
 random, added squared (10), and length, an offset about 0.5 (11). The binding
 passes 0.5 for words 0 to 7, the synth's envelope attack as drumline's attack
 and its decay as drumline's length, and 0 for funk and the added random;
-sustain and release act in the amp envelope stock applies after the voice. Before start, voice word `+0x34` holds
+sustain and release act in the amp envelope stock applies after the voice.
+Note start (+16) draws a per-hit random value for each control at voice words
+`0x50`..`0x5c`, which render scales by the random amount and adds; for a patch
+with `keep_pitch` the binding zeroes the first, the pitch control's, before
+each render. Before start, voice word `+0x34` holds
 the key and `+0x60` a length offset (0.5 adds none), which stock's note start
 (+20) copies from the note.
 

@@ -26,6 +26,7 @@ struct Patch {
     u32 model;         // 0..models-1
     i32 random;
     i32 controls[4];
+    bool keep_pitch;   // true: random leaves the first control (pitch) alone
 };
 
 // Prepares the voice; call once from initialize. A voice that is not

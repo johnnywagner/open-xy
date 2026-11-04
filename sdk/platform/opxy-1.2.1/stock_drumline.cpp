@@ -27,6 +27,10 @@ const u32 kStart = 0x8d513bea, kRender = 0x11a06d28;
 // Voice words the alternate renderer's note start (+20) sets before start: the
 // key, and a Q31 offset its length control adds (0.5 adds nothing).
 const u32 kKeyWord = 0x34 / 4, kLengthOffsetWord = 0x60 / 4;
+// Note start (+16) draws a per-hit random value for each of the four controls
+// at voice words 0x50..0x5c, which render scales by random and adds; the first
+// is the pitch control's.
+const u32 kPitchRandomWord = 0x50 / 4;
 static_assert(sizeof(Voice) == 560, "Stock 1.2.1 drumline voice object");
 
 // The patch block word 0: stock's 66 models (family * 6 + variant) as the
@@ -98,6 +102,7 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     }
     i32 words[8];
     block(*patch, words);
+    if (patch->keep_pitch) voice->words[kPitchRandomWord] = 0;
     // Track words 0..7 offset the controls about 0.5: neutral, so the machine's
     // patch sets them. Words 8..11 are a synth's amp envelope (attack, decay,
     // sustain, release); on a drumline track they are its funk, attack, random

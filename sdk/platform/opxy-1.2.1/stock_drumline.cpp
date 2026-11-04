@@ -45,17 +45,16 @@ const u32 kPitch = 0x11902c00;
 const i32 kC4Scale = 172607;
 
 // Level, as stock plays drumline. Render scales each sample by the per-voice
-// gain the alternate renderer fills at 0x11903400 (track volume and velocity),
-// shifts it left by 7, saturating, and stock's mixer then scales it by the
-// engine's level method (+40, 0x8d513a08, about full scale) shifted right by 3.
-// The synth path applies volume and velocity after the voice and scales it by
-// method +40 directly, so the binding renders at half gain, for headroom before
-// that saturation, and the machine's +40 returns drumline's level shifted right
-// by 2: the same gain, and the voice's output is never boosted.
+// gain the alternate renderer fills at 0x11903400 and shifts it left by 7,
+// saturating; at full gain loud models (kick, resonator) clip there. Stock's
+// per-key gain word is 0x08000000 at 0 dB, and rendered at that gain drumline
+// stays clean. Its loudness comes after the voice, in the mix: the synth path
+// scales a voice by its engine's level method +40 (a synth's default gives about
+// 1/32), so the machine's +40 returns drumline's own level, about full scale.
+// Volume and velocity apply after the voice, as for any synth.
 const u32 kGain = 0x11903400;
-const u32 kHalfGain = 0x40000000;
+const u32 kStockGain = 0x08000000;
 const u32 kLevel = 0x8d513a08;
-const u32 kLevelShift = 2;
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
 
@@ -73,7 +72,7 @@ extern "C" {
 // The stock-voice synth's method +40 (voice.cpp.in names it).
 i32 sdk_drumline_level(const void*) __asm__("sdk_drumline_level");
 i32 sdk_drumline_level(const void*) {
-    return stock<i32(const void*)>(kLevel)(nullptr) >> kLevelShift;
+    return stock<i32(const void*)>(kLevel)(nullptr);
 }
 
 void sdk_drumline_construct(Voice* voice) {
@@ -115,7 +114,7 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         saved[i] = pitch[i];
         saved_gain[i] = gain[i];
-        gain[i] = kHalfGain;
+        gain[i] = kStockGain;
         pitch[i] = static_cast<u32>(opxy::q31::multiply(static_cast<i32>(increments[i]), kC4Scale));
     }
     stock<void(Voice*, i32*, const i32*, const i32*)>(kRender)(voice, output, words, track);

@@ -45,10 +45,13 @@ const u32 kPitch = 0x11902c00;
 const i32 kC4Scale = 172607;
 
 // Render scales each sample by the per-voice gain the alternate renderer fills
-// at 0x11903400, then shifts it left by 7; the synth path fills that buffer with
-// its own values. The binding supplies a constant that the shift makes unity.
+// at 0x11903400 (Q31 products of its smoothed level terms, near full scale at
+// rest), then shifts it left by 7; the synth path fills that buffer with its own
+// values, so the binding supplies full scale. Stock's mixer then scales drumline
+// by the engine's level method (0x8d513a08: 0x7fffffff by default) >> 3.
 const u32 kGain = 0x11903400;
-const u32 kUnityRamp = 0x01000000;
+const u32 kFullGain = 0x7fffffff;
+const u32 kLevelShift = 3;
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
 
@@ -97,13 +100,14 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         saved[i] = pitch[i];
         saved_gain[i] = gain[i];
-        gain[i] = kUnityRamp;
+        gain[i] = kFullGain;
         pitch[i] = static_cast<u32>(opxy::q31::multiply(static_cast<i32>(increments[i]), kC4Scale));
     }
     stock<void(Voice*, i32*, const i32*, const i32*)>(kRender)(voice, output, words, track);
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         pitch[i] = saved[i];
         gain[i] = saved_gain[i];
+        output[i] >>= kLevelShift;
     }
 }
 }

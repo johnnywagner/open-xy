@@ -768,9 +768,11 @@ alternate renderer fills it: the phase increment shifted right by 16, so that
 `0x800` is the model's own tuning. The synth path holds full increments; for
 the call the binding rescales them so that C4 is `0x800`, then restores the
 buffer. Render also scales each sample by the per-voice gain the alternate
-renderer fills at `0x11903400` and shifts it left by 7; the synth path fills
-that buffer with its own values, so for the call the binding sets
-`0x01000000`, which the shift makes unity, then restores it.
+renderer fills at `0x11903400`, Q31 products of its smoothed level terms that
+sit near full scale, and shifts it left by 7; the synth path fills that buffer
+with its own values, so for the call the binding sets full scale, then restores
+it. Stock's mixer scales drumline by the +40 level (`0x7fffffff` by default)
+shifted right by 3; the binding applies that shift.
 
 ### Stock artwork
 

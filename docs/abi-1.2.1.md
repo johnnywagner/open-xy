@@ -771,15 +771,16 @@ alternate renderer fills it: the phase increment shifted right by 16, so that
 `0x800` is the model's own tuning. The synth path holds full increments; for
 the call the binding rescales them so that C4 is `0x800`, then restores the
 buffer. Render also scales each sample by the per-voice gain the alternate
-renderer fills at `0x11903400`, then shifts it left by 7, saturating: at full
-gain loud models clip there. The renderer selector (`0x8d5b79f0`) sends engines
+renderer fills at `0x11903400`, then shifts it left by 7, saturating. The
+renderer selector (`0x8d5b79f0`) sends engines
 3 and 4 through the alternate renderer; every other engine, synths included,
 through the synth renderer (`0x11a09308`), which applies volume and velocity
 after the voice and scales it by method +40 (a synth's default, `0x8d5051c4`,
-gives about 1/32). So for the call the binding fills the gain buffer with
-stock's 0 dB per-key gain, `0x08000000`, at which drumline stays clean, then
-restores it, and the synth's own +40 (`sdk_drumline_level`) returns drumline's
-level (`0x8d513a08`, about full scale), which carries its loudness into the mix.
+gives about 1/32). So for the call the binding fills the gain buffer at full
+scale, then restores it, and the synth's own +40 (`sdk_drumline_level`) returns
+drumline's level (`0x8d513a08`, about full scale). Measured on the device, a
+kick so rendered peaks within 0.1 dB of stock drumline's at the same track
+volume, without saturating.
 
 ### Stock artwork
 

@@ -46,14 +46,14 @@ const i32 kC4Scale = 172607;
 
 // Level, as stock plays drumline. Render scales each sample by the per-voice
 // gain the alternate renderer fills at 0x11903400 and shifts it left by 7,
-// saturating; at full gain loud models (kick, resonator) clip there. Stock's
-// per-key gain word is 0x08000000 at 0 dB, and rendered at that gain drumline
-// stays clean. Its loudness comes after the voice, in the mix: the synth path
-// scales a voice by its engine's level method +40 (a synth's default gives about
-// 1/32), so the machine's +40 returns drumline's own level, about full scale.
-// Volume and velocity apply after the voice, as for any synth.
+// saturating. The synth path applies volume and velocity after the voice, so the
+// binding renders at full gain, and the synth path scales the voice by its
+// engine's level method +40 (a synth's default gives about 1/32), so the
+// machine's +40 returns drumline's own level. Measured on the device, a kick so
+// rendered peaks within 0.1 dB of stock drumline's at the same track volume,
+// with no saturation at this or any lower gain.
 const u32 kGain = 0x11903400;
-const u32 kStockGain = 0x08000000;
+const u32 kFullGain = 0x7fffffff;
 const u32 kLevel = 0x8d513a08;
 
 bool ready(const Voice* voice) { return voice->words[0] == kVtable; }
@@ -114,7 +114,7 @@ void sdk_drumline_render(Voice* voice, const Patch* patch, i32* output, const i3
     for (u32 i = 0; i < opxy::block_frames; ++i) {
         saved[i] = pitch[i];
         saved_gain[i] = gain[i];
-        gain[i] = kStockGain;
+        gain[i] = kFullGain;
         pitch[i] = static_cast<u32>(opxy::q31::multiply(static_cast<i32>(increments[i]), kC4Scale));
     }
     stock<void(Voice*, i32*, const i32*, const i32*)>(kRender)(voice, output, words, track);

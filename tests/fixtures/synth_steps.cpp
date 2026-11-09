@@ -34,6 +34,16 @@ u32 stock_set(u32 project, u32 track, u32 index, i32 value) {
     if (write_count < 16) writes[write_count] = {project, track, index, value};
     return 0x100 + write_count++;
 }
+// Stock's editor, as a turn reaches it: the slot it edits and the event, a marker here.
+u32 edited_index, edited_event;
+u32 stock_edit(u32, u32, u32 index, u32 event) {
+    edited_index = index;
+    edited_event = event;
+    return 0x200;
+}
+u32 shift, instrument_page;
+u32 stock_shift_held() { return shift; }
+u32 stock_step_held() { return 0; }
 // Stock's scramble generator: a marker of the slot it was asked for.
 i32 stock_random(u32 index, u32 shaped) { return static_cast<i32>(0x1000 + index + (shaped << 8)); }
 int ready() { return 1; }
@@ -55,14 +65,18 @@ extern "C" {
 // placeholder; slots 6 and 7 are unused. Engine 42 is paged: every position
 // cycles to its second-page slot 4..7, of which slot 6 is a placeholder.
 // Engine 43 has engine 41's alternates but is not ready (unselected in a kit).
+// Engine 44 steps its six-choice slot 0 two choices a press, and position 1's
+// press flips slot 4, a toggle.
 const opxy::platform::SynthControls sdk_synth_controls[] = {
     {reinterpret_cast<const char*>(40), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0x2, {3, 0, 17, 0, 0, 0, 0, 0}, format, false, false},
     {reinterpret_cast<const char*>(8), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0xd, {0, 4, 0, 0, 0, 0, 0, 0}, format, true, false},
     {reinterpret_cast<const char*>(41), ready, {4, 5, 2, 3, 0, 1, 6, 7}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, format, false, false, 0, 0x20},
     {reinterpret_cast<const char*>(42), ready, {4, 5, 6, 7, 0, 1, 2, 3}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, format, false, true, 0, 0x40},
     {reinterpret_cast<const char*>(43), unready, {4, 5, 2, 3, 0, 1, 6, 7}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, format, false, false},
+    {reinterpret_cast<const char*>(44), ready, {0, 4, 2, 3, 1, 5, 6, 7}, 0, {6, 0, 0, 0, 2, 0, 0, 0}, format, false, false, 0, 0,
+     0, {0, 0, 0, 0}, nullptr, {0, 0, 0, 0}, 1 << 4, {2, 0, 0, 0, 0, 0, 0, 0}},
     {nullptr, nullptr, {0, 1, 2, 3, 4, 5, 6, 7}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, nullptr, false, false}};
-const opxy::u32 sdk_synth_control_count = 5;
+const opxy::u32 sdk_synth_control_count = 6;
 }
 
 opxy::platform::Address opxy::platform::host_stock_address(opxy::platform::Address address) {
@@ -70,6 +84,10 @@ opxy::platform::Address opxy::platform::host_stock_address(opxy::platform::Addre
     if (address == 0x8c0b2468) return reinterpret_cast<Address>(&stock_steps);
     if (address == 0x8d5acf28) return reinterpret_cast<Address>(&stock_set);
     if (address == 0x8c0b5230) return reinterpret_cast<Address>(&stock_random);
+    if (address == 0x8d5ad5bc) return reinterpret_cast<Address>(&stock_edit);
+    if (address == 0x8d51f184) return reinterpret_cast<Address>(&stock_shift_held);
+    if (address == 0x8d5b7e34) return reinterpret_cast<Address>(&stock_step_held);
+    if (address == 0x080238bc) return reinterpret_cast<Address>(&instrument_page);
     std::abort();
 }
 
@@ -130,6 +148,35 @@ int main() {
         require(sdk_synth_scramble(0x86bd027c, track, 13, 5) == 0x100 && write_count == 1 && writes[0].track == track &&
                     writes[0].index == 13 && writes[0].value == 5, "Scramble without alternates not stock");
     }
+    // A press toggle keeps its value through a scramble, and its two values read back.
+    engines[6] = 44;
+    write_count = 0;
+    require(sdk_synth_scramble(0x86bd027c, 6, 13, 77) == 0x100 && write_count == 1, "A toggle was scrambled");
+    require(!toggle_on(0) && !toggle_on(kToggleOff) && toggle_on(kToggleOn), "Toggle values");
+    // Each position counts its own turns, fine (Shift) turns included; a turn's
+    // edit reaches stock unchanged. A call without an event counts none, and
+    // another engine starts every count again. (Engine 44's slots are all
+    // stepped, so stock receives each event as it came.)
+    const u32 event = 0x1234;
+    opxy::u8 turns[4];
+    require(sdk_synth_turn(0x86bd027c, 6, 1, event) == 0x200 && edited_index == 1 && edited_event == event,
+            "Turn not passed to stock");
+    sdk_synth_turn(0x86bd027c, 6, 1, event);
+    shift = 1;
+    sdk_synth_turn(0x86bd027c, 6, 5, event);
+    require(edited_index == 1, "Fine turn not on its position");
+    shift = 0;
+    sdk_synth_turn(0x86bd027c, 6, 2, 0);
+    sdk_synth_turns(6, turns);
+    require(turns[0] == 0 && turns[1] == 3 && turns[2] == 0 && turns[3] == 0, "Turns not counted per position");
+    for (u32 i = 0; i < 300; ++i) sdk_synth_turn(0x86bd027c, 6, 0, event);
+    sdk_synth_turns(6, turns);
+    require(turns[0] == 300 % 256, "Turns do not wrap");
+    engines[6] = 40;
+    sdk_synth_turns(6, turns);
+    require(!turns[0] && !turns[1] && !turns[2] && !turns[3], "Another engine kept the turns");
+    sdk_synth_turns(9, turns);
+    require(!turns[0] && !turns[1] && !turns[2] && !turns[3], "An unowned track has turns");
     std::puts("synth steps ok");
     return 0;
 }

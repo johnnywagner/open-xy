@@ -88,13 +88,18 @@ struct Input {
     // 0, then FX I and FX II, 0..7 (0 follows the track's send); 0 when
     // neutral, not declared, and for other machines.
     i8 pad[4];
+    // The encoder turns at each position of an instrument's page (SDK 1.11),
+    // each a count that wraps modulo 256: the user's turns and press steps, and
+    // a held step's locks as the hold starts; never an LFO, the sequencer or a
+    // preset. 0 on an effect's page and in browser previews.
+    u8 turns[page_controls];
 };
 const u32 notes_unavailable = 0xffffffffu;
 const i32 envelope_unavailable = -1;
 inline bool envelope_known(const Envelope& envelope) {
     return envelope.attack >= 0 && envelope.decay >= 0 && envelope.sustain >= 0 && envelope.release >= 0;
 }
-static_assert(sizeof(Input) == 112 && __builtin_offsetof(Input, pan) == 104 && __builtin_offsetof(Input, level) == 105 &&
+static_assert(sizeof(Input) == 116 && __builtin_offsetof(Input, turns) == 112 && __builtin_offsetof(Input, pan) == 104 && __builtin_offsetof(Input, level) == 105 &&
               __builtin_offsetof(Input, line) == 106 && __builtin_offsetof(Input, pad) == 108 &&
               __builtin_offsetof(Input, elapsed) == 16 && __builtin_offsetof(Input, track) == 20 &&
               __builtin_offsetof(Input, note_serial) == 24 && __builtin_offsetof(Input, reduced_motion) == 28 &&

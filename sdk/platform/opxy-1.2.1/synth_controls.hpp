@@ -32,6 +32,14 @@ struct SynthControls {
     // encoder, 0 keeps Shift's fine turn of the machine's own control, and a
     // stock_shift code below gives the Shift turn to the stock sampler page instead.
     u8 stock_shift[4];
+    // Bit s: slot s is a press toggle (SDK 1.11). A press flips it through
+    // stock's set; the position's turns keep editing its own slot, whose title
+    // is the toggle's while it is on.
+    u8 toggles;
+    // A press step (SDK 1.11): pressing the encoder of position s, an enum with
+    // no alternate, moves it press_steps[s] choices on through stock's editor
+    // (locks included), from its last group of choices back to the first; 0 for none.
+    u8 press_steps[parameter_slots];
     u32 engine() const { return static_cast<u32>(reinterpret_cast<__UINTPTR_TYPE__>(id)); }
 };
 // The stock sampler page's own turns a stockShift entry names: the page's
@@ -73,6 +81,8 @@ extern const opxy::u32 sdk_synth_control_count __asm__("sdk_synth_control_count"
 // The parameter slot each of a track's four page positions edits and shows:
 // 0..3 unless an owned synth's encoder press selected an alternate. GUI only.
 void sdk_synth_shown(opxy::u32 track, opxy::u8* shown) __asm__("sdk_synth_shown");
+// Each position's encoder turns on the track's owned machine, a count that wraps. GUI only.
+void sdk_synth_turns(opxy::u32 track, opxy::u8* turns) __asm__("sdk_synth_turns");
 bool sdk_synth_value(opxy::u32 track, opxy::u32 slot, opxy::i32 value, char* text) __asm__("sdk_synth_value");
 // Whether Shift on the track's sample engine's own screen gives any encoder
 // to the stock sampler page (resources.stockShift, drum_controls_stock.cpp). GUI only.

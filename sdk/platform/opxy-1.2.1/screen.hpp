@@ -72,6 +72,9 @@ inline void update_controls(Base* o, u32 track, const Parameters* p) {
     stock<void(Leaf**, u32, const Parameters*)>(0x8d5466ac)(o->values, track, p);
 }
 inline u32 note_serial(u32 track) { return stock<u32(u32)>(0x8d4d6c08)(track); }
+// The step held for parameter locks, or -1 with none: the word stock's editor
+// tests (8d5b7e34) to edit a lock instead of the track.
+inline i32 held_step() { return *reinterpret_cast<const volatile i32*>(0x86bda0c8); }
 inline void set_matrix(Leaf* node, const i32* matrix) { stock<void(Leaf*, const i32*)>(0x8d5f06a6)(node, matrix); }
 inline void set_text(Leaf* node, const char* text) { platform::set_text(node, text); }
 inline void set_fill(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5fa986)(node, id); }
@@ -149,6 +152,7 @@ struct Controls {
     i32 pan, level;  // a padMix kit's selected key's pan (-100..100) and level (dB, -30..0)
     u32 line;        // the row the encoders and Shift edit: 0 the first, 1 the second
     i32 pads[platform::kDrumPadFields];  // a kit's selected key's pad controls (padControls)
+    u8 turns[page_controls];  // each position's encoder turns (draw::Input::turns)
 };
 
 // Fills controls.slots and values from the stock parameter vector,
@@ -220,9 +224,10 @@ inline bool refresh_controls(Base* o, Controls& controls) {
     controls.pan = controls.level = 0;
     controls.line = 0;
     for (u32 i = 0; i < platform::kDrumPadFields; ++i) controls.pads[i] = 0;
-    for (u32 i = 0; i < 4; ++i) controls.choices[i] = 0;
+    for (u32 i = 0; i < 4; ++i) controls.choices[i] = controls.turns[i] = 0;
     if (send_controls(o, controls)) return true;
     sdk_synth_shown(controls.track, controls.shown);
+    sdk_synth_turns(controls.track, controls.turns);
     controls.line = controls.shown[0] >= page_controls ? 1 : 0;
     for (u32 i = 0; i < page_controls; ++i) controls.values[i] = 0;
     for (u32 i = 0; i < parameter_slots; ++i) controls.slots[i] = 0;

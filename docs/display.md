@@ -67,8 +67,8 @@ Input holds the Q31 value each of the four control positions shows, Q10 elapsed
 seconds, track identity, a uint32 note-start serial, the reduced-motion
 preference, `shown`, the declared parameter index each position shows (its own,
 or an [alternate](api.md#alternate-controls)), `slots`, the Q31 value of
-every declared parameter by index (0 beyond the declared ones), note activity
-and the track's amp envelope. A serial is a
+every declared parameter by index (0 beyond the declared ones), note activity,
+the track's amp envelope and each position's encoder turns. A serial is a
 snapshot, not a queue: several note starts between frames can coalesce.
 Initializing or changing track must not fabricate a note. It counts per track,
 not per key: where keys play different sounds, as a drum kit's do, an
@@ -193,6 +193,27 @@ A screen that draws its own header (the two-page header) shows the Shift
 controls in its edited row while `shift` is 1, as the stock header does. The
 previews use drawing ABI 6, a 112-byte input: ABI 5 (104 bytes) ends after the
 amp envelope, ABI 4 (88 bytes) after `model`, ABI 3 (84 bytes) after `choices`.
+
+### Encoder turns (SDK 1.11)
+
+`turns` counts the encoder turns at each position of an instrument's page,
+each wrapping modulo 256. A turn counts once per event stock delivers, fine
+(Shift) turns included, and a [press step](api.md#press-toggles-and-press-steps-sdk-111)
+counts as one. Holding a step whose lock changes a position's shown value
+counts one for that position, once, as the hold starts. A value moved by a
+lock during playback, an LFO, the sequencer or a preset counts nothing, so a
+change in `turns` is the user's own: a display can show a value's name while
+its encoder turns, then let it fade. An effect's page and browser previews
+keep every count at 0.
+
+```cpp
+// Show the shown choice's name for a second after its encoder last turned.
+if (input.turns[0] != state.turns) { state.turns = input.turns[0]; state.name_q10 = 1024; }
+```
+
+Machines reading `turns` declare `"sdk": "1.11"`. New previews use drawing ABI
+7, a 116-byte input with `turns` after `pad`; the browser host also accepts the
+earlier ABIs, which keep their inputs.
 
 ## Frame
 

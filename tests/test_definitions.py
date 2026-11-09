@@ -9,7 +9,7 @@ import tempfile
 import json
 import unittest
 
-from tooling.adapters import (catalog_defaults, catalog_entry, control_cycles, default_preset, generate_display,
+from tooling.adapters import (toggle_slots, catalog_defaults, catalog_entry, control_cycles, default_preset, generate_display,
                                generate_player_object, generate_screen, generate_synth_controls, preset_files, preset_path, screen_bytes)
 from tooling.definitions import ROOT, control_positions, paged, validate_definition
 from machine_fixtures import FOLDER, fixture
@@ -374,6 +374,101 @@ class Definitions(unittest.TestCase):
                          [('plain_engine_id', 'plain', '0, 1, 2, 3, 4, 5, 6, 7'),
                           ('alt_engine_id', 'alt', '0, 1, 4, 3, 2, 5, 6, 7'),
                           ('probefx_fx_id', 'probefx', '0, 1, 2, 3, 4, 5, 6, 7')])
+
+    def toggled(self):
+        """The probe synth with a press toggle on position 1."""
+        value = copy.deepcopy(self.engine)
+        value['presets'] = {}
+        value['parameters'].append(dict(id='mode', label='mode', default=0, control=1, toggle=True, display='enum',
+                                        mapping=dict(kind='enum', labels=['off', 'on'])))
+        return value
+
+    def stepped(self):
+        """The probe synth whose position 0 steps a six-choice enum two choices a press."""
+        value = copy.deepcopy(self.engine)
+        value['parameters'][0] = dict(id='model', label='model', default=0, display='enum', pressStep=2,
+                                      mapping=dict(kind='enum', labels=['a1', 'a2', 'b1', 'b2', 'c1', 'c2']))
+        value['presets'] = {}
+        return value
+
+    def test_press_toggles_are_declared_exactly(self):
+        toggled = self.toggled()
+        validate_definition(toggled, 'synth')
+        self.assertEqual(toggle_slots(toggled), [4])
+        toggle = toggled['parameters'][4]
+        for bad in (dict(toggle, toggle=False), dict(toggle, toggle=1), dict(toggle, default=0.5),
+                    dict(toggle, mapping=dict(kind='enum', labels=['a', 'b', 'c'])),
+                    dict(toggle, display='percent', mapping=dict(kind='linear', minimum=0, maximum=1))):
+            value = copy.deepcopy(toggled)
+            value['parameters'][4] = bad
+            with self.subTest(toggle=bad), self.assertRaises(ValueError):
+                validate_definition(value, 'synth')
+        # Last in the parameters, so no LFO reaches it, and its position's only alternate.
+        for extra in ([self.alternate(2)], [self.alternate(1)]):
+            value = copy.deepcopy(toggled)
+            value['parameters'] = value['parameters'][:4] + extra + value['parameters'][4:]
+            if extra[0]['control'] == 2:
+                value['parameters'] = value['parameters'][:4] + value['parameters'][5:] + extra
+            with self.subTest(extra=extra), self.assertRaisesRegex(ValueError, 'toggle'):
+                validate_definition(value, 'synth')
+        value = copy.deepcopy(toggled)
+        value['parameters'] = value['parameters'][:4] + [self.alternate(2)] + value['parameters'][4:]
+        validate_definition(value, 'synth')
+        # Only a synth's alternate, and not on a paged synth.
+        value = copy.deepcopy(toggled)
+        value['press'] = 'page'
+        with self.assertRaises(ValueError):
+            validate_definition(value, 'synth')
+        own = copy.deepcopy(self.engine)
+        own['parameters'][1] = dict(own['parameters'][1], toggle=True)
+        with self.assertRaises(ValueError):
+            validate_definition(own, 'synth')
+
+    def test_press_steps_are_declared_exactly(self):
+        stepped = self.stepped()
+        validate_definition(stepped, 'synth')
+        step = stepped['parameters'][0]
+        many = dict(step, mapping=dict(kind='enum', labels=['c%d' % i for i in range(256)]))
+        for bad in (dict(step, pressStep=0), dict(step, pressStep=6), dict(step, pressStep=1.5),
+                    dict(step, pressStep=True), many,
+                    dict(step, display='percent', mapping=dict(kind='linear', minimum=0, maximum=1))):
+            value = copy.deepcopy(stepped)
+            value['parameters'][0] = bad
+            with self.subTest(step=bad['pressStep']), self.assertRaises(ValueError):
+                validate_definition(value, 'synth')
+        # Its position takes no alternate, whose press would cycle it instead.
+        value = copy.deepcopy(stepped)
+        value['parameters'].append(self.alternate(0))
+        with self.assertRaisesRegex(ValueError, 'press step'):
+            validate_definition(value, 'synth')
+        value['parameters'][4] = self.alternate(1)
+        validate_definition(value, 'synth')
+        # Not on an alternate, nor on an effect.
+        value['parameters'][4] = dict(step, id='alt', control=1)
+        with self.assertRaises(ValueError):
+            validate_definition(value, 'synth')
+        effect = copy.deepcopy(fixture('probefx').definition)
+        effect['parameters'][0] = dict(effect['parameters'][0], pressStep=1, display='enum',
+                                       mapping=dict(kind='enum', labels=['a', 'b']))
+        with self.assertRaises(ValueError):
+            validate_definition(effect, 'effect')
+
+    def test_control_table_lists_press_toggles_and_steps(self):
+        toggled, stepped = self.toggled(), self.stepped()
+        machines = [SimpleNamespace(kind='synth', prefix='plain', identity=dict(engine=5), definition=self.engine),
+                    SimpleNamespace(kind='synth', prefix='toggled', identity=dict(engine=6), definition=toggled),
+                    SimpleNamespace(kind='synth', prefix='stepped', identity=dict(engine=7), definition=stepped)]
+        with tempfile.TemporaryDirectory() as directory:
+            text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
+        self.assertRegex(text, r'plain_format, false, false, 0, 0\},')
+        self.assertIn('{toggled_engine_id, toggled_ready, {0, 4, 2, 3, 1, 5, 6, 7},', text)
+        self.assertRegex(text, r'toggled_format, false, false, 0, 0, 0, \{0, 0, 0, 0\}, nullptr, \{0, 0, 0, 0\}, 16, '
+                               r'\{0, 0, 0, 0, 0, 0, 0, 0\}\},')
+        self.assertRegex(text, r'stepped_format, false, false, 0, 0, 0, \{0, 0, 0, 0\}, nullptr, \{0, 0, 0, 0\}, 0, '
+                               r'\{2, 0, 0, 0, 0, 0, 0, 0\}\},')
+        # The LFOs reach every parameter but the toggles.
+        self.assertIn('{toggled_engine_id, toggled_record_ready, 4, ', text)
+        self.assertIn('{stepped_engine_id, stepped_record_ready, 4, ', text)
 
     def test_renderers_generate_for_every_declared_shape(self):
         """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an

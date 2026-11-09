@@ -48,7 +48,9 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'base', 'sources',
 # level, small controls and sends, which lock per hit (resources.padMix and
 # resources.padControls); runs every kit's voices through stock's track filter (M3);
 # and calls a kit's drum_transport with the tempo before every render.
-SDK_VERSION = (1, 10)
+# 1.11 adds a synth's press toggles ("toggle") and press steps ("pressStep"), and
+# gives display code each position's encoder turns (draw::Input turns).
+SDK_VERSION = (1, 11)
 # The stock samplers a sample engine forks (machine.json `base`), by their stock pages:
 # the keyboard sampler's and the drum sampler's, the profile's sample_pages.
 SAMPLE_BASES = {'sampler': 2, 'drumSampler': 7}
@@ -538,6 +540,10 @@ def machine_at(root, identity=None):
         require_sdk(version, (1, 7), 'An effect whose press switches the page ("press": "page")')
     if shift_parameters(definition):
         require_sdk(version, (1, 7), 'An effect\'s shift row ("shift")')
+    if any(p.get('toggle') for p in definition['parameters']):
+        require_sdk(version, (1, 11), 'A press toggle ("toggle")')
+    if any('pressStep' in p for p in definition['parameters']):
+        require_sdk(version, (1, 11), 'A press step ("pressStep")')
     if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
         require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     if 'display' in definition['resources'] and definition['resources']['display']['texts'] > SDK_1_6_TEXTS:

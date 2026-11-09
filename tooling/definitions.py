@@ -253,6 +253,18 @@ def validate_definition(value, kind):
     if kind == 'drum':
         require(sorted(p['control'] for p in parameters[4:]) == [0, 1, 2, 3],
                 'A drum kit has one alternate per encoder')
+    # A press toggle (SDK 1.11) is its position's only alternate, flipped by the
+    # press and never turned. Toggles come last, so no LFO reaches them.
+    toggles = [i for i, p in enumerate(parameters) if p.get('toggle')]
+    alternates = [p.get('control') for p in parameters[SYNTH_POSITIONS:]]
+    require(not toggles or (kind == 'synth' and 'press' not in value and
+                            toggles == list(range(len(parameters) - len(toggles), len(parameters))) and
+                            all(alternates.count(parameters[i]['control']) == 1 for i in toggles)),
+            "A toggle belongs to a four-control synth, last in its parameters and its position's only alternate")
+    # A press step (SDK 1.11) moves its own position's enum: no alternate shares that press.
+    stepped = [i for i, p in enumerate(parameters[:SYNTH_POSITIONS]) if 'pressStep' in p]
+    require(not stepped or (kind == 'synth' and 'press' not in value and not any(i in alternates for i in stepped)),
+            "A press step belongs to a four-control synth's position with no alternate")
     # Two pages share positions with no alternate; no duplicate saved parameters.
     require('press' in value or not any(p.get('absent') and 'control' in p for p in parameters),
             'Only a paged synth puts an absent slot on a position')
@@ -389,7 +401,10 @@ def validate_parameter(parameter, alternate=False, required=True):
     # A synth's or effect's parameters after the first four are alternates of one
     # control position, which a synth's must name.
     named = alternate and (required or 'control' in parameter)
-    keys(parameter, ('id', 'label', 'default', 'mapping', 'display', *(('control',) if named else ())), 'parameter')
+    toggle = named and 'toggle' in parameter
+    press_step = not alternate and required and 'pressStep' in parameter
+    keys(parameter, ('id', 'label', 'default', 'mapping', 'display', *(('control',) if named else ()),
+                     *(('toggle',) if toggle else ()), *(('pressStep',) if press_step else ())), 'parameter')
     if named:
         require(type(parameter['control']) is int and 0 <= parameter['control'] < SYNTH_POSITIONS,
                 'An alternate parameter names its control position 0..3')
@@ -431,3 +446,11 @@ def validate_parameter(parameter, alternate=False, required=True):
         number(mapping['maximum'], mapping['minimum'], 1e9, 'mapping maximum')
     else:
         raise ValueError('Unsupported mapping kind')
+    if toggle:
+        require(parameter['toggle'] is True and kind == 'enum' and len(mapping['labels']) == 2 and
+                parameter['default'] in (0, 1), 'A toggle is {"toggle": true} on a two-choice enum defaulting to 0 or 1')
+    if press_step:
+        # Stock's stepped edits move it, so its choices fit stock's step table.
+        require(kind == 'enum' and type(parameter['pressStep']) is int and
+                1 <= parameter['pressStep'] < len(mapping['labels']) < 256,
+                'A press step is {"pressStep": n} on an enum of fewer than 256 choices, n from 1 to its choices less one')

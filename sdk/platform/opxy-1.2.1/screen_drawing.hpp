@@ -55,6 +55,26 @@ u32 display_note_serial(const Controls& controls) {
     return s.serial;
 }
 
+// Holding a step shows its locks in place of the track's values. When a step
+// comes to be held (or another one is), each position whose shown value changed
+// counts one turn, so a display shows what it shows while that encoder turns (a
+// locked choice's name, say). Only that moment counts: playback or an LFO under
+// the hold moves nothing. An effect's page on a send counts none.
+struct HeldTurns { u32 valid, track; i32 step, values[page_controls]; u8 turns[page_controls]; };
+HeldTurns held_turns;
+void count_held_turns(const Controls& controls) {
+    HeldTurns& h = held_turns;
+    if (controls.track >= 8) return;
+    const i32 step = held_step();
+    if (h.valid && h.track == controls.track && step != h.step && step != -1)
+        for (u32 i = 0; i < page_controls; ++i)
+            if (controls.values[i] != h.values[i]) ++h.turns[i];
+    for (u32 i = 0; i < page_controls; ++i) h.values[i] = controls.values[i];
+    h.step = step;
+    h.track = controls.track;
+    h.valid = 1;
+}
+
 // Machine: ids[] names the artwork's nodes (the first are the mutable paths),
 // then its text slots, then its palette entries.
 template <class Machine> struct Drawing {
@@ -83,9 +103,11 @@ template <class Machine> struct Drawing {
             for (u32 p = 0; p < path_count; ++p) o->keys[p] = 0;
             display_activation = activation;
         }
+        count_held_turns(controls);
         for (u32 i = 0; i < page_controls; ++i) {
             display_input.parameters[i] = controls.values[i];
             display_input.shown[i] = controls.shown[i];
+            display_input.turns[i] = controls.track < 8 ? static_cast<u8>(controls.turns[i] + held_turns.turns[i]) : 0;
         }
         for (u32 i = 0; i < parameter_slots; ++i) display_input.slots[i] = controls.slots[i];
         display_input.model = controls.model;

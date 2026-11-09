@@ -348,6 +348,29 @@ acceleration. Stock consumes the event synchronously and still owns lock
 editing and publication. The selection is GUI state per track, reset when the
 track's engine changes. Other pages and unowned engines retain stock routing.
 
+A [press toggle](api.md#press-toggles-and-press-steps-sdk-111) is never
+selected: the press writes its word at track object `+0x3864` and calls stock's
+setter `0x8d5acf28`, as a stored track control write does, without passing
+through the editor that records locks. The title hook returns the toggle's slot
+while its word is at or above 0.5.
+
+A press step calls stock's editor `8d5ad5bc` with an event of `n` detents, as a
+turn at speed 0 would, so a held step's lock and publication stay stock's. For
+a stepped parameter the encoder step `8d5ad2e8` reads its detents from
+`event[1]`, times 1 at speed 0 (`event[2]` ≤ 0), and clamps to the first and
+last choice; `event[0]` is the continuous step. The event is `{n, n, 0}`. If
+neither the shown value (`8d5ac9dc(project, track, index, 1)`) nor the track's
+current word has left its group of choices afterwards (the editor stopped at
+the last choice), it sends `{-c, -c, 0}` for the enum's `c` choices, back to
+the first.
+
+The display input's `turns` count each turn event `sdk_synth_turn` receives for
+an owned machine's position, and each press step. A step held for a lock is the
+word at `86bda0c8` (−1 with none), which stock's editor tests through
+`8d5b7e34` to edit the lock. When it changes to a step, the screen counts one
+turn for each position whose shown value (stock's vector `8d4d72a8`, the held
+step's locks) differs from the frame before.
+
 Holding the track key and choosing scramble randomizes the track's parameters
 0..3 and its other preset groups, but never 4..7. Its last stock write is
 hooked: for an owned synth, every alternate except an empty placeholder then

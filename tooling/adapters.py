@@ -406,6 +406,11 @@ def control_cycles(definition):
     return following
 
 
+def toggle_slots(definition):
+    """The slots of a synth's press toggles, which come last: no LFO reaches them."""
+    return [i for i, p in enumerate(definition['parameters']) if p.get('toggle')]
+
+
 def enum_steps(parameter):
     """An enum's choice count, for stock's stepped encoder edits; 0 for any other control and for an
     enum too large for stock's step table (fewer than 256 steps)."""
@@ -421,7 +426,7 @@ def generate_synth_controls(directory, machines):
             declarations.append(f'int {m.prefix}_record_ready() __asm__("{m.prefix}_record_ready");')
             declarations.append(f'extern const char {m.prefix}_engine_id[] __asm__("{m.prefix}_engine_id");')
             controls = ', '.join(str((i if position is None else position) % 4) for i, position in enumerate(control_positions(m.definition)))
-            lfo_rows.append(f'    {{{m.prefix}_engine_id, {m.prefix}_record_ready, {len(m.definition["parameters"])}, {{{controls}}}}},')
+            lfo_rows.append(f'    {{{m.prefix}_engine_id, {m.prefix}_record_ready, {len(m.definition["parameters"]) - len(toggle_slots(m.definition))}, {{{controls}}}}},')
         # A sample engine with its own screen pages its eight controls as a paged synth does.
         own_screen = m.kind == 'sample' and m.display != 'stock'
         if m.kind not in ('synth', 'drum', 'effect') and not own_screen:
@@ -477,18 +482,27 @@ def generate_synth_controls(directory, machines):
         formatters.append('\n'.join(body))
         # A drum kit's press always pages its whole row.
         page = m.kind == 'drum' or own_screen and count > 4 or paged(m.definition)
+        # Fields after absent, in SynthControls order; a row ends after its last declared one.
         # An effect's shift row: its choice counts and titles; other rows leave the fields zero.
-        extra = ''
+        tail = []
         shift = shift_parameters(m.definition)
         if shift:
             titles = ', '.join(json.dumps(p['label'].lower()) for p in shift)
             declarations.append(f'static const char* const {m.prefix}_shift_titles[] = {{{titles}}};')
             choices = [len(p['mapping']['labels']) for p in shift] + [1] * (SYNTH_POSITIONS - len(shift))
-            extra = f", {len(shift)}, {{{', '.join(map(str, choices))}}}, {m.prefix}_shift_titles"
+            tail = [str(len(shift)), f"{{{', '.join(map(str, choices))}}}", f'{m.prefix}_shift_titles']
         elif own_screen and 'stockShift' in m.definition['resources']:
             # Shift gives these encoders to the stock sampler page (drum_controls_stock.cpp).
             codes = ', '.join(map(str, stock_shift_codes(m.definition)))
-            extra = f', 0, {{1, 1, 1, 1}}, nullptr, {{{codes}}}'
+            tail = ['0', '{1, 1, 1, 1}', 'nullptr', f'{{{codes}}}']
+        # A synth's press toggles and press steps (SDK 1.11).
+        toggles = sum(1 << i for i in toggle_slots(m.definition)) if m.kind == 'synth' else 0
+        press_steps = [p.get('pressStep', 0) if m.kind == 'synth' else 0 for p in m.definition['parameters']]
+        press_steps += [0] * (8 - len(press_steps))
+        if toggles or any(press_steps):
+            tail += ['0', '{0, 0, 0, 0}', 'nullptr', '{0, 0, 0, 0}'][len(tail):]
+            tail += [str(toggles), f"{{{', '.join(map(str, press_steps))}}}"]
+        extra = ''.join(', ' + field for field in tail)
         rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, "
                     f"{{{', '.join(map(str, steps))}}}, {m.prefix}_format, "
                     f"{'true' if effect else 'false'}, {'true' if page else 'false'}, {hidden_pages(m.definition)}, {absent}{extra}}},")

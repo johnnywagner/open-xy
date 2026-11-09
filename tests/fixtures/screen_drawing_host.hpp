@@ -18,7 +18,7 @@ struct Command { i32 x, y; u32 type; };
 struct Leaf {};
 struct PathNode { Leaf leaf; Vector commands; };
 struct Base { const void* svg; u32 page; Leaf* values[4]; Leaf* titles[4]; };
-struct Controls { bool valid; u32 track; u8 shown[4]; i32 values[4], slots[8]; u32 model, pad; bool choosing; u32 shift; u8 choices[4]; i32 pan, level; u32 line; i32 pads[4]; };
+struct Controls { bool valid; u32 track; u8 shown[4]; i32 values[4], slots[8]; u32 model, pad; bool choosing; u32 shift; u8 choices[4]; i32 pan, level; u32 line; i32 pads[4]; u8 turns[4]; };
 inline PathNode* path_node(void* raw) { return static_cast<PathNode*>(raw); }
 template<class T> void clear(T*) {}
 inline void bind_controls(Base*) {}
@@ -30,6 +30,7 @@ template<unsigned N> void set_words(Leaf*, const u32 (&)[N], const i32 (&)[N]) {
 inline void paint(void*, u32, bool) {}
 inline void set_text(Leaf*, const char*) {}
 inline u32 note_serial(u32) { return 0; }
+inline i32 held_step() { return -1; }
 inline bool refresh_controls(Base*, Controls&) { return false; }
 inline void draw(Base*) {}
 }}}

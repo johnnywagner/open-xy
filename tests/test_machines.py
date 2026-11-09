@@ -259,7 +259,7 @@ class OutsideMachines(unittest.TestCase):
         for version in ('1.1', '1.2', '1.3', '1.4'):
             self.rename('fmcopy', self.free, version)
             self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
-        for version in ('1.5', '1.6', '1.7', '1.8', '1.9', '1.10'):
+        for version in ('1.5', '1.6', '1.7', '1.8', '1.9', '1.10', '1.11'):
             self.numberless(self.folder, sdk=version)
             self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
         future = '%d.%d' % (machines.SDK_VERSION[0], machines.SDK_VERSION[1] + 1)
@@ -286,6 +286,25 @@ class OutsideMachines(unittest.TestCase):
             machines.machine_at(self.folder)
         self.numberless(self.folder, sdk='1.9')
         self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
+
+    def test_press_toggles_and_steps_need_the_sdk_that_adds_them(self):
+        path = self.folder / 'definition.json'
+        original = json.loads(path.read_text(encoding='utf-8'))
+        toggled = json.loads(json.dumps(original))
+        toggled['parameters'].append(dict(id='mode', label='mode', default=0, control=1, toggle=True, display='enum',
+                                          mapping=dict(kind='enum', labels=['off', 'on'])))
+        stepped = json.loads(json.dumps(original))
+        stepped['parameters'][0] = dict(id='model', label='model', default=0, display='enum', pressStep=1,
+                                        mapping=dict(kind='enum', labels=['a', 'b', 'c']))
+        for definition, feature in ((toggled, 'press toggle'), (stepped, 'press step')):
+            definition['presets'] = {}
+            path.write_text(json.dumps(definition), encoding='utf-8')
+            with self.subTest(feature=feature):
+                self.numberless(self.folder, sdk='1.10')
+                with self.assertRaisesRegex(ValueError, feature + r'.*needs "sdk": "1.11"'):
+                    machines.machine_at(self.folder)
+                self.numberless(self.folder, sdk='1.11')
+                self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
 
     def test_a_drum_kits_pad_mix_needs_the_sdk_that_adds_it(self):
         path = self.folder / 'definition.json'

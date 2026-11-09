@@ -21,7 +21,7 @@ function signed(value) {
 const vector = items => [...unsigned(items.length), ...items.flat()];
 const section = (id, bytes) => [id, ...unsigned(bytes.length), ...bytes];
 const name = value => [...unsigned(value.length), ...new TextEncoder().encode(value)];
-function fixture(abi = 2, inputBytes = {1:68, 2:76, 3:84, 4:88, 5:104, 6:112}[abi]) {
+function fixture(abi = 2, inputBytes = {1:68, 2:76, 3:84, 4:88, 5:104, 6:112, 7:116}[abi]) {
   const constants = {opxy_display_abi:abi, opxy_display_state_bytes:16,
     opxy_display_input_bytes:inputBytes, opxy_display_frame_bytes:100,
     opxy_display_state:1024, opxy_display_input:2048, opxy_display_frame:4096, opxy_display_valid:1};
@@ -176,4 +176,14 @@ test('ABI 6 publishes a padMix kit key\'s pan, level, pad fields and the encoder
   const five = new PreviewDisplay(fixture(5));
   five.tick(input(), 17, 1, 0, false, null, 0, 0, [0, 0, 0, 0], null, {pan: 50, level: -3}, 1);
   assert.equal(five.input.length, 26);
+});
+
+test('ABI 7 adds a synth\'s encoder turns after the pad fields, which a preview keeps at 0', () => {
+  const display = new PreviewDisplay(fixture(7));
+  assert.equal(display.input.length, 29);
+  new Uint8Array(display.memory, 2048 + 112, 4).fill(9);
+  display.tick(input(), 17, 1, 0, false, null, 0, 0, [0, 0, 0, 0], null, {pan: -40, level: -6, pad: [1, 2, 3, 4]}, 1);
+  assert.equal(display.input[28], 0);
+  assert.deepEqual([...new Int8Array(display.memory, 2048 + 104, 8)], [-40, -6, 1, 0, 1, 2, 3, 4], 'The pad fields keep their place');
+  assert.throws(() => new PreviewDisplay(fixture(7, 112)), /ABI/);
 });

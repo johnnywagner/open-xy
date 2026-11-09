@@ -308,6 +308,35 @@ every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
 
+#### Press toggles and press steps (SDK 1.11)
+
+A synth's alternate can instead be a press toggle: `"toggle": true` on a
+two-choice enum defaulting to 0 or 1, which is its position's only alternate.
+Toggles come after every other parameter, so the LFOs never reach them.
+Pressing the encoder flips the toggle; turns keep editing the position's own
+parameter, and the position shows the toggle's label as its title while it is
+on. The toggle reaches `render` and is saved with presets and projects like any
+parameter, but no turn edits it, so a held step can't lock it, and scramble
+leaves it alone.
+
+```json
+{"id": "glide", "label": "glide", "control": 1, "toggle": true, "default": 0,
+ "display": "enum", "mapping": {"kind": "enum", "labels": ["off", "on"]}}
+```
+
+One of a synth's first four parameters can instead step on a press:
+`"pressStep": n` on an enum of fewer than 256 choices whose position has no
+alternate, with `n` from 1 to its choices less one. Pressing the encoder moves
+it `n` choices on through stock's editor, as a turn does, so a held step locks
+it; from its last group of `n` choices it returns to the first. An enum with
+several choices per model, say, steps a whole model a press while a turn moves
+one choice. Each press counts as a turn of its position in the display input's
+[`turns`](display.md#encoder-turns-sdk-111).
+
+Neither applies to a paged synth (`"press": "page"`), whose press switches the
+page. A browser preview edits a toggle or a press-stepped enum as it does any
+other control.
+
 A send effect's parameters after the first four are alternates on its send
 page in the same way. Each may name its position with `"control": 0..3`;
 without one, parameter `i` alternates on position `i - 4`. A press cycles the

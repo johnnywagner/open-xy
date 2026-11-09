@@ -1,8 +1,9 @@
 // Stock OS 1.2.1 instrument-track encoders for synths with alternate controls.
 // Each hook replaces a CALL.A of a C function, so stock calls it with the C
 // ABI. A press of an owned synth's encoder selects the position's next
-// parameter; a turn edits the selected one, an enum one choice per detent; the
-// track menu's scramble also randomizes the alternates. Everything else reaches stock as before.
+// parameter, flips a press toggle or steps a press-stepped enum; a turn edits the
+// selected one, an enum one choice per detent; the track menu's scramble also
+// randomizes the alternates. Everything else reaches stock as before.
 #include "synth_controls.hpp"
 #include <opxy/effect.hpp>
 #include "shift_row.hpp"
@@ -50,10 +51,11 @@ const SynthControls* owned(u32 engine, bool effect = false) {
     return nullptr;
 }
 
-// The slot each position shows, per track, while the track keeps an owned
-// engine: an instrument track's, or the machine holding an aux track. Engine 0
-// is never a synth, so zeroed state starts on slots 0..3.
-struct Track { u32 engine; u8 slots[opxy::page_controls]; };
+// The slot each position shows, and its encoder turns (draw::Input::turns), per
+// track, while the track keeps an owned engine: an instrument track's, or the
+// machine holding an aux track. Engine 0 is never a synth, so zeroed state
+// starts on slots 0..3.
+struct Track { u32 engine; u8 slots[opxy::page_controls]; u8 turns[opxy::page_controls]; };
 Track tracks[kAllTracks];
 // The same for the effects on the two send tracks, and whether an owned effect
 // newly on a send still has its controls 5..8 to store (sdk_send_refresh).
@@ -65,7 +67,10 @@ Track* state(u32 track, u32 engine) {
     Track& t = tracks[track];
     if (t.engine != engine) {
         t.engine = engine;
-        for (u32 i = 0; i < opxy::page_controls; ++i) t.slots[i] = static_cast<u8>(i);
+        for (u32 i = 0; i < opxy::page_controls; ++i) {
+            t.slots[i] = static_cast<u8>(i);
+            t.turns[i] = 0;
+        }
     }
     return &t;
 }
@@ -162,6 +167,50 @@ const u32 kProjectLoading = 0x840a0528;  // nonzero while stock loads a project
 opxy::i32 stored_value(u32 track, u32 slot) {
     return *reinterpret_cast<const volatile opxy::i32*>(kProject + 0x4080 + track * 0xe8 + slot * 4);
 }
+
+// A toggle's values: its two-choice enum's centres, as a stepped edit stores them.
+const opxy::i32 kToggleOff = 0x20000000, kToggleOn = 0x60000000;
+bool toggle_on(opxy::i32 value) { return value >= 0x40000000; }
+
+// A press on a position: its next slot, or a toggle's flip. A toggle is written
+// only here, never through stock's editor, so a step can't lock it: the track's
+// current word, then stock's set, which stores it and publishes it to the voices.
+void press_position(const SynthControls* m, Track* t, u32 track, u32 position) {
+    const u32 next = m->next[t->slots[position]];
+    if (next >= opxy::parameter_slots) return;
+    if (!(m->toggles >> next & 1)) {
+        t->slots[position] = static_cast<u8>(next);
+        return;
+    }
+    const u32 current = stock<u32(u32)>(0x8d587708)(track) + 0x3864 + next * 4;
+    const opxy::i32 value = toggle_on(*reinterpret_cast<const volatile opxy::i32*>(current)) ? kToggleOff : kToggleOn;
+    *reinterpret_cast<volatile opxy::i32*>(current) = value;
+    set_parameter(kProject, track, next, value);
+}
+
+// A press step: the position's enum moves press_steps choices on through stock's
+// editor (8d5ad5bc), so a held step locks it as a turn would. For a stepped
+// parameter stock's encoder step (8d5ad2e8) moves event[1] detents at speed 0
+// (event[2]), one choice each, clamped to the first and last; event[0] is the
+// continuous step, carried too. When the press leaves its group of choices
+// where it was (the editor stopped at the last), it wraps to the first choice.
+// The value is read as the page shows it (8d5ac9dc: a held step's lock, else
+// live or base) and as the editor stores it.
+void press_step(const SynthControls* m, u32 track, u32 slot) {
+    const u32 count = m->steps[slot], step = m->press_steps[slot];
+    if (count < 2 || !step) return;
+    const auto edit = stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ad5bc);
+    const auto shown = stock<opxy::i32(u32, u32, u32, u32)>(0x8d5ac9dc);
+    const opxy::i32 forward[3] = {static_cast<opxy::i32>(step), static_cast<opxy::i32>(step), 0},
+                    back[3] = {-static_cast<opxy::i32>(count), -static_cast<opxy::i32>(count), 0};
+    const u32 group = control_choice(shown(kProject, track, slot, 1), count) / step,
+              stored = control_choice(current_value(track, slot), count) / step;
+    edit(kProject, track, slot, forward);
+    if (control_choice(shown(kProject, track, slot, 1), count) / step != group ||
+        control_choice(current_value(track, slot), count) / step != stored)
+        return;
+    edit(kProject, track, slot, back);
+}
 }
 
 void sdk_synth_shown(u32 track, u8* slots) {
@@ -170,11 +219,23 @@ void sdk_synth_shown(u32 track, u8* slots) {
     for (u32 i = 0; i < opxy::page_controls; ++i) slots[i] = m ? t->slots[i] : static_cast<u8>(i);
 }
 
-// Reads only the selection the screen shell refreshed for this frame.
+void sdk_synth_turns(u32 track, u8* turns) {
+    Track* t;
+    const SynthControls* m = machine(track, t);
+    for (u32 i = 0; i < opxy::page_controls; ++i) turns[i] = m ? t->turns[i] : 0;
+}
+
+// Reads only the selection the screen shell refreshed for this frame. A press
+// toggle that is on titles its position.
 u32 sdk_synth_title_slot(u32 engine, u32 index) {
     const u32 track = byte(kSelectedTrack);
     if (track >= kAllTracks || index >= opxy::page_controls || !engine || tracks[track].engine != engine) return index;
-    return tracks[track].slots[index];
+    const u32 slot = tracks[track].slots[index];
+    if (const SynthControls* m = owned(engine)) {
+        const u32 next = m->next[slot];
+        if (next < opxy::parameter_slots && (m->toggles >> next & 1) && toggle_on(current_value(track, next))) return next;
+    }
+    return slot;
 }
 
 // 8d5466f6: only the engine screen's four titles follow alternate selection.
@@ -198,22 +259,29 @@ void sdk_synth_press(u32 encoder) {
     if (encoder >= opxy::page_controls) return;
     const u32 controller = top_controller_vtable();
     if (controller == kInstrumentController && word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
+        // A press step moves its own position's enum, and counts as one of the
+        // position's turns, so a display shows what it shows while that encoder
+        // turns (the new choice's name, say).
+        const u32 own = t->slots[encoder];
+        if (own < opxy::parameter_slots && m->press_steps[own]) {
+            press_step(m, byte(kSelectedTrack), own);
+            ++t->turns[encoder];
+            return;
+        }
         // A paged synth's or a drum kit's press moves the whole row; a slot the
         // selected key's model leaves unnamed shows blank. A key whose model has
         // no second row stays on its first.
         if (!second_row(m->engine(), byte(kSelectedTrack))) return;
         for (u32 i = 0; i < opxy::page_controls; ++i) {
             if (i != encoder && !m->page) continue;
-            const u32 next = m->next[t->slots[i]];
-            if (next < opxy::parameter_slots) t->slots[i] = static_cast<u8>(next);
+            press_position(m, t, byte(kSelectedTrack), i);
         }
     } else if (controller == kAuxController && sdk_aux_owns_page && sdk_aux_owns_page(byte(kSelectedTrack)) &&
                (m = machine(byte(kSelectedTrack), t))) {
         // The page of a machine holding an aux track, as on an instrument track.
         for (u32 i = 0; i < opxy::page_controls; ++i) {
             if (i != encoder && !m->page) continue;
-            const u32 next = m->next[t->slots[i]];
-            if (next < opxy::parameter_slots) t->slots[i] = static_cast<u8>(next);
+            press_position(m, t, byte(kSelectedTrack), i);
         }
     } else if (controller == kAuxController && (m = send_effect(selected_track(), t))) {
         // An owned effect's send page: the click selects the position's next
@@ -295,6 +363,7 @@ u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
     if (fine_turn) index -= 4;
     const SynthControls* m = index < opxy::page_controls ? machine(track, t) : nullptr;
     if (m) {
+        if (event) ++t->turns[index];
         index = t->slots[index];
         // An absent slot (an empty placeholder) turns nothing: stock gets a turn of no detents.
         if (event && index < opxy::parameter_slots && (m->absent & (1u << index))) {
@@ -481,7 +550,7 @@ u32 sdk_synth_scramble(u32 project, u32 track, u32 index, opxy::i32 value) {
     const SynthControls* m = synth(track);
     if (!m) return result;
     for (u32 s = opxy::page_controls; s < opxy::parameter_slots; ++s)
-        if (m->next[s] != s && !(m->absent & (1u << s)))
+        if (m->next[s] != s && !((m->absent | m->toggles) & (1u << s)))
             set_parameter(project, track, s, stock<opxy::i32(u32, u32)>(0x8c0b5230)(s, 0));
     return result;
 }
